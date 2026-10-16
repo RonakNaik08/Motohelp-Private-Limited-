@@ -2,27 +2,42 @@
 
 const API_BASE_URL = 'http://localhost:5050/api';
 
-const getAuthHeaders = () => {
+const getAuthHeaders = async () => {
+  const headers = { 'Content-Type': 'application/json' };
+
+  try {
+    // 1. Prioritize authentic Clerk JWT Session Token if signed in
+    if (window?.Clerk?.session) {
+      const token = await window.Clerk.session.getToken();
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+        return headers;
+      }
+    }
+  } catch (err) {
+    console.warn('[API Auth] Clerk session token retrieval notice:', err);
+  }
+
+  // 2. Development offline demo token
   try {
     const raw = localStorage.getItem('MOTOHELP_SCM_AUTH_USER');
-    if (!raw) return { 'Content-Type': 'application/json' };
-    const user = JSON.parse(raw);
-    const role = user.role || user.roleType || 'customer';
-    const email = (user.email || '').trim().toLowerCase();
-    return {
-      'Content-Type': 'application/json',
-      'X-User-Role': role,
-      'X-User-Email': email,
-      'Authorization': `Bearer SCM-TOKEN-${user.id || 'ANON'}-${role}`
-    };
-  } catch {
-    return { 'Content-Type': 'application/json' };
-  }
+    if (raw) {
+      const user = JSON.parse(raw);
+      if (user?.email) {
+        const email = encodeURIComponent((user.email || '').trim().toLowerCase());
+        const role = encodeURIComponent(user.role || user.roleType || 'customer');
+        headers['Authorization'] = `Bearer SCM-DEMO-${email}-${role}`;
+      }
+    }
+  } catch {}
+
+  return headers;
 };
 
 const secureFetch = async (endpoint, options = {}) => {
+  const authHeaders = await getAuthHeaders();
   const headers = {
-    ...getAuthHeaders(),
+    ...authHeaders,
     ...(options.headers || {})
   };
 
@@ -178,9 +193,16 @@ export const SCM_API = {
     return secureFetch('/invoices');
   },
 
-  settleInvoicePayment: async (invoiceId) => {
-    return secureFetch(`/invoices/${invoiceId}/pay`, {
+  matchInvoice: async (invoiceId) => {
+    return secureFetch(`/invoices/${invoiceId}/match`, {
       method: 'PUT'
+    });
+  },
+
+  settleInvoicePayment: async (invoiceId, paymentData = {}) => {
+    return secureFetch(`/invoices/${invoiceId}/pay`, {
+      method: 'PUT',
+      body: JSON.stringify(paymentData)
     });
   },
 

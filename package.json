@@ -9,9 +9,11 @@
     "db:init": "node database/init_db.js",
     "server": "node --watch server/index.js",
     "lint": "oxlint",
+    "test": "node tests/backend_security.test.js",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@clerk/express": "^2.1.79",
     "@clerk/react": "^6.17.8",
     "@vis.gl/react-google-maps": "^1.10.1",
     "better-sqlite3": "^13.0.3",
