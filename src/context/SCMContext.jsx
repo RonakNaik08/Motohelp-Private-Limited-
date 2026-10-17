@@ -71,13 +71,13 @@ export const SCMProvider = ({ children }) => {
   const [activePortal, setActivePortalState] = useState(() => {
     const user = getStoredUser();
     const isSuperAdmin = user?.email?.trim().toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase();
+    if (!isSuperAdmin) {
+      return 'customer';
+    }
     if (user?.role && SCM_PORTALS.some(p => p.key === user.role)) {
-      if (user.role === 'admin' && !isSuperAdmin) {
-        return 'customer';
-      }
       return user.role;
     }
-    return isSuperAdmin ? 'admin' : 'customer';
+    return 'admin';
   });
   const [activeModule, setActiveModule] = useState(() => {
     const user = getStoredUser();
@@ -93,9 +93,8 @@ export const SCMProvider = ({ children }) => {
 
   const setActivePortal = (portalKey) => {
     const isSuperAdmin = Boolean(currentUser?.email?.trim().toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase());
-    if (portalKey === 'admin' && !isSuperAdmin) {
-      console.warn(`[Security Alert] Access Denied: Admin ERP Portal is strictly restricted to ${SUPER_ADMIN_EMAIL}`);
-      alert(`Access Restricted: Only ${SUPER_ADMIN_EMAIL} is authorized for Admin ERP Portal access.`);
+    if (!isSuperAdmin) {
+      // Non-superadmin users have access to Customer Portal ONLY
       setActivePortalState('customer');
       setActiveModule('customer_dashboard');
       return;
@@ -382,18 +381,34 @@ export const SCMProvider = ({ children }) => {
 
   const safeSetActiveModule = (moduleKey) => {
     const isSuperAdminUser = Boolean(currentUser?.email?.trim().toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase());
-    const adminOnlyModules = [
-      'dashboard', 'inventory', 'warehouse', 'procurement', 'grn',
-      'sales', 'logistics', 'suppliers', 'customers', 'invoices',
-      'reports', 'audit', 'database', 'infrastructure', 'settings',
-      'forecasting', 'procurement_req', 'stock_mgmt', 'stock_transfer',
-      'adjustments', 'storage_bins', 'receiving_picking', 'dispatch_delivery',
-      'deliveries', 'shipments_list', 'supplier_perf'
-    ];
-    if (!isSuperAdminUser && adminOnlyModules.includes(moduleKey)) {
-      console.warn(`[Access Denied] Only ${SUPER_ADMIN_EMAIL} can access admin module '${moduleKey}'`);
-      setActiveModule('customer_dashboard');
-      return;
+    if (!isSuperAdminUser) {
+      const customerAllowedModules = [
+        'customer_dashboard', 'customer_orders', 'customer_products', 'customer_cart',
+        'customer_track', 'customer_invoices', 'customer_payments', 'customer_favorites',
+        'customer_returns', 'customer_support', 'customer_profile', 'customer_settings'
+      ];
+      if (!customerAllowedModules.includes(moduleKey)) {
+        if (moduleKey.includes('product') || moduleKey.includes('catalog') || moduleKey.includes('inventory')) {
+          setActiveModule('customer_products');
+        } else if (moduleKey.includes('order') || moduleKey.includes('sales')) {
+          setActiveModule('customer_orders');
+        } else if (moduleKey.includes('track') || moduleKey.includes('ship') || moduleKey.includes('logistics')) {
+          setActiveModule('customer_track');
+        } else if (moduleKey.includes('cart') || moduleKey.includes('bag')) {
+          setActiveModule('customer_cart');
+        } else if (moduleKey.includes('invoice') || moduleKey.includes('bill')) {
+          setActiveModule('customer_invoices');
+        } else if (moduleKey.includes('pay')) {
+          setActiveModule('customer_payments');
+        } else if (moduleKey.includes('favor') || moduleKey.includes('wish')) {
+          setActiveModule('customer_favorites');
+        } else if (moduleKey.includes('return') || moduleKey.includes('rma')) {
+          setActiveModule('customer_returns');
+        } else {
+          setActiveModule('customer_dashboard');
+        }
+        return;
+      }
     }
     setActiveModule(moduleKey);
   };

@@ -222,6 +222,9 @@ export const Sidebar = () => {
   ];
 
   const currentNavSections = (() => {
+    if (!isSuperAdmin) {
+      return userNavSections;
+    }
     switch (activePortal) {
       case 'customer': return userNavSections;
       case 'procurement': return procurementNavSections;
@@ -231,11 +234,13 @@ export const Sidebar = () => {
       case 'supplier': return supplierNavSections;
       case 'admin':
       default:
-        return isSuperAdmin ? adminNavSections : userNavSections;
+        return adminNavSections;
     }
   })();
 
-  const currentPortalObj = (SCM_PORTALS || []).find(p => p.key === activePortal) || SCM_PORTALS[0];
+  const currentPortalObj = !isSuperAdmin
+    ? (SCM_PORTALS || []).find(p => p.key === 'customer')
+    : ((SCM_PORTALS || []).find(p => p.key === activePortal) || SCM_PORTALS[0]);
 
   return (
     <aside style={{
@@ -299,7 +304,7 @@ export const Sidebar = () => {
         flex: 1
       }}>
         {/* Top Dashboard Button for Admin */}
-        {activePortal === 'admin' && (
+        {isSuperAdmin && activePortal === 'admin' && (
           <div style={{ marginBottom: '0.85rem' }}>
             <button
               onClick={() => setActiveModule('dashboard')}

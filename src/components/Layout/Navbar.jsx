@@ -118,8 +118,47 @@ export const Navbar = ({ onOpenSearch }) => {
           </span>
         </div>
 
-        {/* Center: Interactive 7-Portals Switcher (5 Phases) */}
-        <div style={{ position: 'relative' }}>
+        {/* Center: Portal Identification / Switcher */}
+        {!isSuperAdmin ? (
+          /* For Customers: Dedicated Customer Portal Display (Restricted from other portals) */
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '6px 14px',
+              borderRadius: 'var(--radius-input)',
+              border: '1px solid rgba(30, 58, 95, 0.2)',
+              background: 'rgba(30, 58, 95, 0.05)'
+            }}
+            title="Motohelp B2B Customer Portal"
+          >
+            <div
+              style={{
+                width: '26px',
+                height: '26px',
+                borderRadius: '6px',
+                background: '#1E3A5F',
+                color: '#FFFFFF',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <User size={14} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.15 }}>
+              <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--brand-primary)' }}>
+                Customer B2B Portal
+              </span>
+              <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                Verified Client Portal
+              </span>
+            </div>
+          </div>
+        ) : (
+          /* For Super Admin: Full 7-Portals Interactive Switcher */
+          <div style={{ position: 'relative' }}>
           <button
             onClick={() => setShowPortalMenu(!showPortalMenu)}
             style={{
@@ -279,6 +318,7 @@ export const Navbar = ({ onOpenSearch }) => {
             </div>
           )}
         </div>
+        )}
 
         {/* Right Controls: Role Badge + Notification Bell + Theme Toggle + User Profile */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>

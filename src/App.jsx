@@ -58,6 +58,13 @@ const MainApp = () => {
 
   const renderActiveModule = () => {
     // -------------------------------------------------------------
+    // STRICT SECURITY: Non-Superadmins have access to Customer Portal ONLY
+    // -------------------------------------------------------------
+    if (!isSuperAdmin) {
+      return <CustomerOrdersHub />;
+    }
+
+    // -------------------------------------------------------------
     // PHASE 1: CUSTOMER PORTAL
     // -------------------------------------------------------------
     if (activePortal === 'customer') {
@@ -69,13 +76,6 @@ const MainApp = () => {
     // -------------------------------------------------------------
     if (activePortal === 'supplier') {
       return <SupplierPortalView />;
-    }
-
-    // -------------------------------------------------------------
-    // STRICT SECURITY: ADMIN ACCESS ONLY FOR ronak.naik019@gmail.com
-    // -------------------------------------------------------------
-    if (activePortal === 'admin' && !isSuperAdmin) {
-      return <CustomerOrdersHub />;
     }
 
     // -------------------------------------------------------------
@@ -169,10 +169,12 @@ const MainApp = () => {
         </main>
       </div>
 
-      {/* Global Modals & AI Assistant - For Operational & Admin Portals */}
-      {(isAdmin || activePortal !== 'customer') && (
+      {/* Global Quick Search Modal */}
+      <QuickSearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
+
+      {/* Operational ERP Modals & AI Assistant - Exclusively for Super Admin */}
+      {isSuperAdmin && isAdmin && (
         <>
-          <QuickSearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
           {showCreatePO && <CreatePOModal isOpen={showCreatePO} onClose={() => setShowCreatePO(false)} />}
           {showInwardGRN && <GoodsReceiptModal isOpen={showInwardGRN} onClose={() => { setShowInwardGRN(false); setGrnDefaultPO(null); }} defaultPO={grnDefaultPO} />}
           {showCreateSO && <CreateSOModal isOpen={showCreateSO} onClose={() => setShowCreateSO(false)} />}

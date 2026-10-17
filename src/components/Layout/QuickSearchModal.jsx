@@ -25,12 +25,13 @@ export const QuickSearchModal = ({ isOpen, onClose }) => {
   const q = query.toLowerCase().trim();
 
   // Filtered results
-  const matchedProducts = q ? products.filter(p => p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || p.category.toLowerCase().includes(q)).slice(0, 3) : [];
-  const matchedPOs = q ? purchaseOrders.filter(p => p.poNumber.toLowerCase().includes(q) || p.vendorName.toLowerCase().includes(q)).slice(0, 3) : [];
-  const matchedSOs = q ? salesOrders.filter(s => s.soNumber.toLowerCase().includes(q) || s.customerName.toLowerCase().includes(q)).slice(0, 3) : [];
-  const matchedShipments = q ? shipments.filter(s => s.waybillNumber.toLowerCase().includes(q) || s.trackingNumber.toLowerCase().includes(q) || s.carrier.toLowerCase().includes(q)).slice(0, 3) : [];
-  const matchedSuppliers = q ? suppliers.filter(s => s.name.toLowerCase().includes(q) || s.category.toLowerCase().includes(q)).slice(0, 2) : [];
-  const matchedCustomers = q ? customers.filter(c => c.name.toLowerCase().includes(q) || c.city.toLowerCase().includes(q)).slice(0, 2) : [];
+  const matchedProducts = q ? products.filter(p => p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || (p.category && p.category.toLowerCase().includes(q))).slice(0, 3) : [];
+  const matchedSOs = q ? salesOrders.filter(s => s.soNumber.toLowerCase().includes(q) || (s.customerName && s.customerName.toLowerCase().includes(q))).slice(0, 3) : [];
+  const matchedShipments = q ? shipments.filter(s => (s.waybillNumber && s.waybillNumber.toLowerCase().includes(q)) || (s.trackingNumber && s.trackingNumber.toLowerCase().includes(q)) || (s.carrier && s.carrier.toLowerCase().includes(q))).slice(0, 3) : [];
+  // Admin-only search results
+  const matchedPOs = (isAdmin && q) ? purchaseOrders.filter(p => p.poNumber.toLowerCase().includes(q) || (p.vendorName && p.vendorName.toLowerCase().includes(q))).slice(0, 3) : [];
+  const matchedSuppliers = (isAdmin && q) ? suppliers.filter(s => s.name.toLowerCase().includes(q) || (s.category && s.category.toLowerCase().includes(q))).slice(0, 2) : [];
+  const matchedCustomers = (isAdmin && q) ? customers.filter(c => c.name.toLowerCase().includes(q) || (c.city && c.city.toLowerCase().includes(q))).slice(0, 2) : [];
 
   const totalMatches = matchedProducts.length + matchedPOs.length + matchedSOs.length + matchedShipments.length + matchedSuppliers.length + matchedCustomers.length;
 

@@ -102,7 +102,25 @@ const main = async () => {
 
   // Test 8: Unverified Payment Rejection
   await runTest('P1-5: Payment before 3-way match approval is rejected (400)', async () => {
-    // 1. Inward a test GRN to get a pending invoice
+    // 0. Create a fresh PO for clean inwarding
+    const testPoNumber = `PO-TEST-${Date.now()}`;
+    const poRes = await fetch(`${API_BASE}/purchase-orders`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer SCM-DEMO-ronak.naik019%40gmail.com-admin'
+      },
+      body: JSON.stringify({
+        poNumber: testPoNumber,
+        vendorName: 'Bosch Auto Systems India Pvt Ltd',
+        grandTotal: 1850,
+        items: [{ productId: 'PRD-101', sku: 'MH-BRK-PAD-01', name: 'Brake Pad', quantity: 1, unitPrice: 1850 }]
+      })
+    });
+    const poData = await poRes.json();
+    assert.strictEqual(poRes.status, 201, 'Expected 201 Created for test PO');
+
+    // 1. Inward a test GRN against the fresh PO to get a pending invoice
     const grnRes = await fetch(`${API_BASE}/grns`, {
       method: 'POST',
       headers: {
@@ -110,7 +128,8 @@ const main = async () => {
         'Authorization': 'Bearer SCM-DEMO-warehouse.admin%40motohelp.com-warehouse'
       },
       body: JSON.stringify({
-        poNumber: 'PO-2026-0841',
+        poId: poData.id,
+        poNumber: testPoNumber,
         vendorName: 'Bosch Auto Systems India Pvt Ltd',
         totalAcceptedQty: 1,
         totalReceivedQty: 1,
@@ -152,7 +171,30 @@ const main = async () => {
     assert.strictEqual(validPayRes.status, 200, `Expected 200 OK for payment, got ${validPayRes.status}`);
   });
 
-  console.log('\n🎉 All 8 Security, RBAC & Transaction Tests Passed Successfully!\n');
+  // Test 9: Customer Isolation on Supplier and Customer Directories
+  await runTest('Customer Isolation: Customer cannot view supplier directory (403)', async () => {
+    const res = await fetch(`${API_BASE}/suppliers`, {
+      headers: {
+        'Authorization': 'Bearer SCM-DEMO-customer%40fleet.com-customer'
+      }
+    });
+    assert.strictEqual(res.status, 403, `Expected 403 Forbidden, got ${res.status}`);
+  });
+
+  // Test 10: Customer cannot access database execution tool
+  await runTest('Database Protection: Customer cannot execute arbitrary SQL queries (403)', async () => {
+    const res = await fetch(`${API_BASE}/db/query`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer SCM-DEMO-customer%40fleet.com-customer'
+      },
+      body: JSON.stringify({ query: 'SELECT * FROM users' })
+    });
+    assert.strictEqual(res.status, 403, `Expected 403 Forbidden, got ${res.status}`);
+  });
+
+  console.log('\n🎉 All 10 Security, RBAC, Customer Isolation & Transaction Tests Passed Successfully!\n');
 };
 
 main().catch(err => {
