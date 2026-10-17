@@ -1,0 +1,20 @@
+services:
+  motohelp-scm:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: motohelp-scm-prod
+    restart: unless-stopped
+    ports:
+      - "5050:5050"
+    environment:
+      - NODE_ENV=production
+      - PORT=5050
+      - CLERK_PUBLISHABLE_KEY=${CLERK_PUBLISHABLE_KEY:-}
+      - CLERK_SECRET_KEY=${CLERK_SECRET_KEY:-}
+    volumes:
+      - scm-data:/app/database
+
+volumes:
+  scm-data:
+    driver: local

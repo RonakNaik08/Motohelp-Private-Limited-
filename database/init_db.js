@@ -232,6 +232,28 @@ const seedMasterData = db.transaction(() => {
   });
 });
 
-seedMasterData();
-console.log('🎉 Motohelp SCM Database successfully seeded and ready for production operations!');
+// Guard: Check if business records already exist
+let existingRecords = 0;
+try {
+  const row = db.prepare("SELECT count(*) as count FROM products").get();
+  existingRecords = row ? row.count : 0;
+} catch {}
+
+const isForce = process.argv.includes('--force');
+const isProd = process.env.NODE_ENV === 'production';
+
+if (existingRecords > 0 && !isForce) {
+  console.log(`ℹ️  Existing database records detected (${existingRecords} products). Preserving business data without resetting.`);
+  console.log('💡 Note: To explicitly reset database tables for dev, run: node database/init_db.js --force');
+} else {
+  if (isProd && !isForce) {
+    console.log('🔒 Production mode: destructive database wipe skipped.');
+  } else {
+    console.log('🔄 Seeding initial master records into database...');
+    seedMasterData();
+    console.log('🎉 Motohelp SCM Database master data seeded successfully!');
+  }
+}
+
 db.close();
+

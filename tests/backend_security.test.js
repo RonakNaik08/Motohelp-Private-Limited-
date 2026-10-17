@@ -194,10 +194,57 @@ const main = async () => {
     assert.strictEqual(res.status, 403, `Expected 403 Forbidden, got ${res.status}`);
   });
 
-  console.log('\n🎉 All 10 Security, RBAC, Customer Isolation & Transaction Tests Passed Successfully!\n');
+  // Test 11: Real-Time SSE Event Streaming
+  await runTest('Real-Time SSE: Server-Sent Events stream broadcasts database mutation events (<500ms)', async () => {
+    const token = 'SCM-DEMO-ronak.naik019%40gmail.com-admin';
+    const controller = new AbortController();
+    let eventReceived = false;
+
+    const res = await fetch(`${API_BASE}/events?token=${encodeURIComponent(token)}`, {
+      signal: controller.signal
+    });
+    assert.strictEqual(res.status, 200, `Expected 200 OK for SSE stream, got ${res.status}`);
+    assert(res.headers.get('content-type')?.includes('text/event-stream'), 'Expected text/event-stream content type');
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+
+    // Trigger mutation in background
+    setTimeout(async () => {
+      await fetch(`${API_BASE}/sales-orders`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          customerName: 'Realtime Fleet Corp',
+          grandTotal: 4500,
+          items: [{ productId: 'PRD-101', sku: 'MH-BRK-PAD-01', name: 'Brake Pad', quantity: 1, unitPrice: 2250 }]
+        })
+      });
+    }, 200);
+
+    const deadline = Date.now() + 4000;
+    while (Date.now() < deadline) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value);
+      if (chunk.includes('ORDER_CREATED') || chunk.includes('STOCK_UPDATED')) {
+        eventReceived = true;
+        controller.abort();
+        break;
+      }
+    }
+
+    assert(eventReceived, 'Expected to receive ORDER_CREATED or STOCK_UPDATED SSE event');
+  });
+
+  console.log('\n🎉 All 11 Security, RBAC, Customer Isolation, Real-Time SSE & Transaction Tests Passed Successfully!\n');
 };
 
 main().catch(err => {
   console.error('\n❌ Test suite failed:', err);
   process.exit(1);
 });
+

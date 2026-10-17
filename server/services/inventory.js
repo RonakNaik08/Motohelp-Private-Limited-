@@ -1,6 +1,8 @@
 // Motohelp SCM — Transaction-Safe Inventory & Order Fulfillment Engine
 // Atomic, idempotent, and prevents overselling by validating inventory before any mutation
 
+import { realtimeService } from './realtime.js';
+
 /**
  * Creates a Sales Order atomically with strict inventory availability checks.
  * Rejects orders if requested quantity exceeds current stock.
@@ -129,7 +131,10 @@ export const createSalesOrderTransaction = (db, { so, user }) => {
     return { soId, soNumber, itemCount: items.length };
   });
 
-  return execute(so);
+  const result = execute(so);
+  realtimeService.broadcast('ORDER_CREATED', { soNumber: result.soNumber, customerName: so.customerName });
+  realtimeService.broadcast('STOCK_UPDATED', { reason: 'ORDER_RESERVATION', soNumber: result.soNumber });
+  return result;
 };
 
 /**
@@ -259,7 +264,11 @@ export const processGoodsReceiptTransaction = (db, { grn, user }) => {
     return { grnId, grnNumber, totalAccepted, invoiceId: invId };
   });
 
-  return execute(grn);
+  const result = execute(grn);
+  realtimeService.broadcast('GRN_INWARDED', { grnNumber: result.grnNumber, poNumber: grn.poNumber });
+  realtimeService.broadcast('STOCK_UPDATED', { reason: 'GRN_INWARD', totalAccepted: result.totalAccepted });
+  realtimeService.broadcast('INVOICE_CREATED', { invoiceId: result.invoiceId });
+  return result;
 };
 
 /**
@@ -324,7 +333,9 @@ export const executeThreeWayMatching = (db, { invoiceId, user }) => {
     return { id, invoiceNumber: inv.invoice_number, matchStatus, status: invoiceStatus, details };
   });
 
-  return execute(invoiceId);
+  const result = execute(invoiceId);
+  realtimeService.broadcast('INVOICE_MATCHED', { invoiceId: result.id, status: result.status });
+  return result;
 };
 
 /**
@@ -364,5 +375,7 @@ export const recordPaymentTransaction = (db, { invoiceId, paymentRef, paymentMet
     return { id, invoiceNumber: inv.invoice_number, status: 'Paid in Full', paymentRef: ref };
   });
 
-  return execute(invoiceId);
+  const result = execute(invoiceId);
+  realtimeService.broadcast('PAYMENT_SETTLED', { invoiceId: result.id, paymentRef: result.paymentRef });
+  return result;
 };

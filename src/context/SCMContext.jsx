@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useUser, useClerk } from '@clerk/react';
-import { SCM_API } from '../services/api';
+import { SCM_API, getEventsUrl } from '../services/api';
 import {
   INITIAL_BRANCHES,
   INITIAL_ROLES,
@@ -529,11 +529,105 @@ export const SCMProvider = ({ children }) => {
   // Hydrate on component mount
   useEffect(() => {
     fetchLiveState();
-    // Auto sync with live SQLite DB every 10 seconds
+    // Safety fallback: sync with live SQLite DB every 30 seconds
     const interval = setInterval(() => {
       fetchLiveState(true);
-    }, 10000);
+    }, 30000);
     return () => clearInterval(interval);
+  }, [fetchLiveState]);
+
+  // Real-Time Server-Sent Events (SSE) Stream Connection
+  useEffect(() => {
+    let eventSource = null;
+    let isCancelled = false;
+
+    const setupSSE = async () => {
+      try {
+        const eventsUrl = await getEventsUrl();
+        if (isCancelled) return;
+
+        eventSource = new EventSource(eventsUrl);
+
+        eventSource.onopen = () => {
+          setIsLiveConnected(true);
+          setDbStatus('connected');
+        };
+
+        const handleRealtimeEvent = (e) => {
+          try {
+            const data = JSON.parse(e.data);
+            console.log(`[Realtime SSE] Received event: ${e.type}`, data);
+
+            // Immediate silent refresh from SQLite backend upon transaction commit
+            fetchLiveState(true);
+
+            // Real-time alert notifications
+            if (e.type === 'ORDER_CREATED') {
+              setNotifications(prev => [{
+                id: `NTF-${Date.now().toString().slice(-4)}`,
+                title: 'New Order Confirmed',
+                message: `Order #${data.soNumber || 'SO'} placed by ${data.customerName || 'Customer'}.`,
+                timestamp: 'Just now',
+                read: false,
+                type: 'order'
+              }, ...prev]);
+            } else if (e.type === 'STOCK_UPDATED') {
+              setNotifications(prev => [{
+                id: `NTF-${Date.now().toString().slice(-4)}`,
+                title: 'Inventory Stock Updated',
+                message: `Physical inventory synchronized (${data.reason || 'Movement'}).`,
+                timestamp: 'Just now',
+                read: false,
+                type: 'inventory'
+              }, ...prev]);
+            } else if (e.type === 'SHIPMENT_UPDATED') {
+              setNotifications(prev => [{
+                id: `NTF-${Date.now().toString().slice(-4)}`,
+                title: 'Shipment Milestone Advanced',
+                message: `Consignment #${data.shipmentId} updated to ${data.status}.`,
+                timestamp: 'Just now',
+                read: false,
+                type: 'logistics'
+              }, ...prev]);
+            } else if (e.type === 'GRN_INWARDED') {
+              setNotifications(prev => [{
+                id: `NTF-${Date.now().toString().slice(-4)}`,
+                title: 'Goods Inwarded (GRN)',
+                message: `GRN #${data.grnNumber} inwarded. Physical stock incremented.`,
+                timestamp: 'Just now',
+                read: false,
+                type: 'procurement'
+              }, ...prev]);
+            }
+          } catch (err) {
+            console.warn('[Realtime SSE] Error processing message:', err);
+          }
+        };
+
+        eventSource.addEventListener('ORDER_CREATED', handleRealtimeEvent);
+        eventSource.addEventListener('STOCK_UPDATED', handleRealtimeEvent);
+        eventSource.addEventListener('SHIPMENT_UPDATED', handleRealtimeEvent);
+        eventSource.addEventListener('GRN_INWARDED', handleRealtimeEvent);
+        eventSource.addEventListener('INVOICE_CREATED', handleRealtimeEvent);
+        eventSource.addEventListener('INVOICE_MATCHED', handleRealtimeEvent);
+        eventSource.addEventListener('PAYMENT_SETTLED', handleRealtimeEvent);
+
+        eventSource.onerror = () => {
+          // EventSource will automatically retry connection
+        };
+      } catch (err) {
+        console.warn('[Realtime SSE] Setup notice:', err);
+      }
+    };
+
+    setupSSE();
+
+    return () => {
+      isCancelled = true;
+      if (eventSource) {
+        eventSource.close();
+      }
+    };
   }, [fetchLiveState]);
 
   // --------------------------------------------------------------------------

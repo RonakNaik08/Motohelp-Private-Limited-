@@ -4,10 +4,13 @@
 import './env.js';
 import express from 'express';
 import cors from 'cors';
+import compression from 'compression';
+import fs from 'fs';
 import Database from 'better-sqlite3';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { clerkMiddleware } from '@clerk/express';
+import { realtimeService } from './services/realtime.js';
 
 import {
   requireAuth,
@@ -112,6 +115,15 @@ const rateLimiter = (isSensitive = false) => {
 
 app.use(rateLimiter(false));
 
+// Map token from query param (for EventSource SSE connection compatibility)
+app.use((req, res, next) => {
+  if (!req.headers.authorization && req.query.token) {
+    const raw = String(req.query.token).trim();
+    req.headers.authorization = raw.startsWith('Bearer ') ? raw : `Bearer ${raw}`;
+  }
+  next();
+});
+
 // 4. Official Clerk Authentication Middleware
 app.use(clerkMiddleware());
 
@@ -146,8 +158,16 @@ app.get('/api/health', (req, res) => {
     company: 'Motohelp Private Limited',
     dbEngine: 'SQLite 3 (WAL Mode)',
     authProvider: 'Clerk Backend JWT (Integrated)',
+    environment: process.env.NODE_ENV || 'development',
+    version: '2.6.0',
+    activeRealtimeClients: realtimeService.getActiveClientCount(),
     timestamp: new Date().toISOString()
   });
+});
+
+// Real-Time Event Stream (Server-Sent Events)
+app.get('/api/events', requireAuth, (req, res) => {
+  realtimeService.addClient(req, res, req.user);
 });
 
 // Authenticated Real KPIs (Computed dynamically, zero static fabrications)
@@ -718,6 +738,7 @@ app.put('/api/shipments/:id/advance', requireRole(['director', 'logistics']), (r
       }
 
       logAudit(req.user.name, req.user.role, 'Logistics', 'SHIPMENT_ADVANCE', id, `Advanced milestone for ${id} to ${newStatus}`);
+      realtimeService.broadcast('SHIPMENT_UPDATED', { shipmentId: id, status: newStatus, location: newLoc });
       res.json({ success: true, status: newStatus, location: newLoc });
     } else {
       res.json({ success: true, message: 'All milestones completed' });
@@ -945,6 +966,35 @@ app.post('/api/db/reset', devOnly, requireAdmin, rateLimiter(true), (req, res) =
     res.status(500).json({ error: err.message });
   }
 });
+
+// ============================================================================
+// PRODUCTION STATIC SERVING & SPA FALLBACK
+// ============================================================================
+if (process.env.NODE_ENV === 'production') {
+  app.use(compression());
+  const distPath = path.join(__dirname, '../dist');
+  if (fs.existsSync(distPath)) {
+    console.log(`📦 Serving production Vite assets from ${distPath}`);
+    app.use(express.static(distPath, { maxAge: '1d', etag: true }));
+    app.get('*', (req, res, next) => {
+      if (req.path.startsWith('/api')) return next();
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+  }
+}
+
+// Graceful Shutdown
+const handleShutdown = () => {
+  console.log('\n🛑 Gracefully shutting down Motohelp SCM server...');
+  realtimeService.closeAll();
+  try {
+    db.close();
+  } catch {}
+  process.exit(0);
+};
+
+process.on('SIGTERM', handleShutdown);
+process.on('SIGINT', handleShutdown);
 
 // Start Server
 app.listen(PORT, () => {
